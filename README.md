@@ -145,6 +145,25 @@ ENABLE_TAILSCALE="false"
 
 ---
 
+## Running without Tailscale
+
+Tailscale is fully optional. To disable it entirely:
+
+```bash
+# ~/.config/pi-container/config.sh
+ENABLE_TAILSCALE="false"
+```
+
+With Tailscale disabled:
+- No VPN daemon is started
+- `NET_ADMIN` / `NET_RAW` capabilities are not requested
+- The `pi-tailscale-state` volume is not created or mounted
+
+This is the recommended setting when running on an HPC cluster or any machine
+where the network is already managed at the host level.
+
+---
+
 ## Tailscale (one-time login)
 
 Tailscale state is stored in a Docker named volume (`pi-tailscale-state`),
@@ -264,6 +283,73 @@ For pure network-level AI sandboxing (restrict what the AI can reach):
 
 ---
 
+## Apptainer / Singularity (HPC clusters)
+
+Apptainer (formerly Singularity) is the standard container runtime on HPC
+clusters where Docker is not available.  The same Docker Hub image works —
+Apptainer converts it to a local `.sif` file on first use.
+
+**Key differences from Docker — mostly simpler:**
+
+| | Docker | Apptainer |
+|---|---|---|
+| Runs as | remapped to your UID via entrypoint | you, automatically |
+| `$HOME` | explicit bind mounts | auto-mounted |
+| Network | NAT (private) | host network (shared) |
+| Tailscale | runs inside container | use host's Tailscale instead |
+| Image format | layer cache | single `.sif` file |
+| Root daemon | required | not required |
+
+### Quick start
+
+```bash
+chmod +x apptainer-run.sh
+
+# First run: pulls image from Docker Hub and converts to .sif (~takes a minute)
+./apptainer-run.sh
+
+# Update the .sif to latest image
+./apptainer-run.sh --pull
+
+# Run a single command
+./apptainer-run.sh python myscript.py
+```
+
+The `.sif` is stored in `~/.local/share/pi-container/pi-devcontainer.sif`.
+Override via `APPTAINER_SIF` in `~/.config/pi-container/config.sh`:
+
+```bash
+# e.g. on a cluster with a shared software directory:
+APPTAINER_SIF="/shared/containers/pi-devcontainer.sif"
+```
+
+### Tailscale on HPC
+
+Tailscale **cannot run inside** an Apptainer container — it needs `NET_ADMIN`
+capability and `/dev/net/tun`, neither of which are available to unprivileged
+Apptainer containers.
+
+Two alternatives:
+
+1. **Run Tailscale on the host** (preferred) — the container shares the host
+   network, so it benefits from the host's VPN connection transparently.
+   Nothing to configure inside the container.
+
+2. **HPC clusters** — you're typically already on the institution network;
+   no VPN needed at all.
+
+Either way, set `ENABLE_TAILSCALE="false"` in your config — it only affects
+the Docker workflow but makes the intent explicit.
+
+### Install `apptainer-run.sh` to PATH
+
+```bash
+cp apptainer-run.sh ~/.local/bin/pirun-apptainer
+chmod +x ~/.local/bin/pirun-apptainer
+```
+
+---
+
 ## Apple Silicon / Mac M-series
 
 ```bash
@@ -289,10 +375,12 @@ Linux regardless of host OS — the image platform flag just controls amd64 vs a
 picontainer/
 ├── Dockerfile          # Image definition
 ├── entrypoint.sh       # Root setup → gosu drop → tailscaled
-├── run.sh              # Launch / re-attach script
+├── run.sh              # Docker: launch / re-attach
+├── apptainer-run.sh    # Apptainer/Singularity: launch (HPC)
 ├── build.sh            # Build helper (single + multi-arch)
-├── install.sh          # One-time local install
+├── install.sh          # One-time local install (Docker)
 ├── config.example.sh   # → copy to ~/.config/pi-container/config.sh
+├── Makefile
 ├── .dockerignore
 └── README.md
 ```
