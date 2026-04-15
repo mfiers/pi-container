@@ -8,11 +8,11 @@
 #    ./install.sh
 #
 #  Pull pre-built image from a registry (only run.sh needed after):
-#    ./install.sh --from-registry ghcr.io/yourname/pi-devcontainer:latest
+#    ./install.sh --from-registry yourname/pi-devcontainer:latest
 #
 #  Non-interactive (CI / remote bootstrap via curl | bash):
-#    REGISTRY=ghcr.io/yourname/pi-devcontainer:latest \
-#      bash <(curl -fsSL https://raw.githubusercontent.com/yourname/pi-container/main/install.sh)
+#    REGISTRY=yourname/pi-devcontainer:latest \
+#      bash <(curl -fsSL https://raw.githubusercontent.com/mfiers/pi-container/main/install.sh)
 #
 # What is installed
 # ─────────────────
@@ -72,7 +72,7 @@ if [[ ! -f "${CONFIG_FILE}" ]]; then
         cp "${SCRIPT_DIR}/config.example.sh" "${CONFIG_FILE}"
     elif [[ -n "${REGISTRY}" ]]; then
         # Derive a raw URL guess from the registry image path (GitHub Packages)
-        RAW_BASE="https://raw.githubusercontent.com/$(echo "${REGISTRY}" | sed 's|ghcr.io/||;s|:.*||')/main"
+        RAW_BASE="https://raw.githubusercontent.com/mfiers/pi-container/main"
         curl -fsSL "${RAW_BASE}/config.example.sh" -o "${CONFIG_FILE}" 2>/dev/null \
             || { echo "⚠  Could not fetch config template; creating a minimal one."; minimal_config; }
     else

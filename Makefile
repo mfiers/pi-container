@@ -21,20 +21,17 @@ run:  ## Launch a container session (auto-pulls image if not present)
 
 # -- Registry: push from this machine -----------------------------------------
 
-push:  ## Build multi-arch image and push to REGISTRY (required)
-	@test -n "$(REGISTRY)" || { echo "Usage: make push REGISTRY=ghcr.io/you/pi-devcontainer:latest"; exit 1; }
+push:  ## Build multi-arch image and push to REGISTRY (e.g. dockerhub: yourname/pi-devcontainer:latest)
+	@test -n "$(REGISTRY)" || { echo "Usage: make push REGISTRY=yourname/pi-devcontainer:latest"; exit 1; }
 	./build.sh --multi --push --tag $(REGISTRY)
 	@echo ""
 	@echo "Pushed: $(REGISTRY)"
 	@echo ""
 	@echo "To install on another machine (only install.sh + run.sh needed):"
 	@echo "  ./install.sh --from-registry $(REGISTRY)"
-	@echo ""
-	@echo "Or with curl (if repo is public):"
-	@echo "  bash <(curl -fsSL https://raw.githubusercontent.com/mfiers/pi-container/main/install.sh) --from-registry $(REGISTRY)"
 
 # -- Remote machine (no source repo needed) -----------------------------------
 
 install-remote:  ## Pull pre-built image and install pirun (no Dockerfile needed)
-	@test -n "$(REGISTRY)" || { echo "Usage: make install-remote REGISTRY=ghcr.io/you/pi-devcontainer:latest"; exit 1; }
+	@test -n "$(REGISTRY)" || { echo "Usage: make install-remote REGISTRY=yourname/pi-devcontainer:latest"; exit 1; }
 	./install.sh --from-registry $(REGISTRY)

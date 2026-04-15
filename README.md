@@ -34,25 +34,29 @@ Two paths depending on whether you want to build or pull a pre-built image.
 
 ### Path A — pull from a registry (recommended, no Dockerfile needed)
 
+Use **Docker Hub** (free for public images, no token needed to pull).
+Requires a one-time `docker login` on the push machine.
+
 **On the first machine:** push the image once:
 ```bash
-make push REGISTRY=ghcr.io/yourname/pi-devcontainer:latest
-# builds multi-arch (amd64 + arm64) and pushes
+docker login                          # one-time, uses Docker Hub by default
+make push REGISTRY=yourname/pi-devcontainer:latest
+# builds multi-arch (amd64 + arm64) and pushes to Docker Hub
 ```
 
 **On every other machine:** only `install.sh` and `run.sh` are needed:
 ```bash
 # Option 1 — copy two files manually or via scp:
 scp install.sh run.sh other-host:~/pi-container/
-ssh other-host 'cd ~/pi-container && ./install.sh --from-registry ghcr.io/yourname/pi-devcontainer:latest'
+ssh other-host 'cd ~/pi-container && ./install.sh --from-registry yourname/pi-devcontainer:latest'
 
-# Option 2 — curl directly from GitHub (if repo is public):
-bash <(curl -fsSL https://raw.githubusercontent.com/yourname/pi-container/main/install.sh) \
-  --from-registry ghcr.io/yourname/pi-devcontainer:latest
+# Option 2 — curl directly from GitHub (repo is public):
+bash <(curl -fsSL https://raw.githubusercontent.com/mfiers/pi-container/main/install.sh) \
+  --from-registry yourname/pi-devcontainer:latest
 
 # Option 3 — env var (for scripting / dotfiles bootstrap):
-REGISTRY=ghcr.io/yourname/pi-devcontainer:latest \
-  bash <(curl -fsSL https://raw.githubusercontent.com/yourname/pi-container/main/install.sh)
+REGISTRY=yourname/pi-devcontainer:latest \
+  bash <(curl -fsSL https://raw.githubusercontent.com/mfiers/pi-container/main/install.sh)
 ```
 
 After that, `pirun` on the remote machine auto-pulls the image on first launch
