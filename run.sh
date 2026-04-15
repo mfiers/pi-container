@@ -116,6 +116,8 @@ mount_ro "${HOME}/.profile"
 mount_ro "${HOME}/.bash_aliases"
 
 # ── Tool state (read-write) ───────────────────────────────────────────────────
+# Node / NVM (provides the `pi` binary and any globally installed npm tools)
+mount_rw "${HOME}/.nvm"
 # pi agent
 mount_rw "${HOME}/.pi"
 mount_rw "${HOME}/.config/pi"
@@ -195,6 +197,7 @@ SECURITY_FLAGS=(
     --cap-add SETUID
     --cap-add SETGID
     --cap-add DAC_OVERRIDE
+    --cap-add KILL
     --security-opt no-new-privileges:true
 )
 
@@ -238,4 +241,4 @@ exec docker run \
     "${SECURITY_FLAGS[@]}" \
     "${EXTRA_DOCKER_ARGS[@]+"${EXTRA_DOCKER_ARGS[@]}"}" \
     "${IMAGE_NAME}" \
-    "${PASSTHROUGH_ARGS[@]:-}"
+    "${PASSTHROUGH_ARGS[@]+"${PASSTHROUGH_ARGS[@]}"}"

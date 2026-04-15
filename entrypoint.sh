@@ -85,6 +85,9 @@ if [[ "${ENABLE_TAILSCALE}" == "true" ]]; then
         sleep 1
     fi
 
+    # Allow the host user to run tailscale without sudo
+    tailscale set --operator="${REAL_USER}" 2>/dev/null || true
+
     # Status check (non-fatal)
     if tailscale status --json 2>/dev/null | grep -q '"BackendState":"Running"'; then
         TS_IP=$(tailscale ip -4 2>/dev/null || echo "unknown")

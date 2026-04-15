@@ -37,6 +37,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     less \
     jq \
     fzf \
+    # SSH
+    openssh-client \
     # Network / debug
     iproute2 \
     iputils-ping \
