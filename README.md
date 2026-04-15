@@ -66,7 +66,7 @@ if it's not cached locally yet — no build step, no Dockerfile.
 
 Needs Docker only (and `git`):
 ```bash
-git clone https://github.com/yourname/pi-container.git
+git clone https://github.com/mfiers/pi-container.git
 cd pi-container
 ./install.sh          # builds image locally, installs pirun
 ```
@@ -115,10 +115,13 @@ Add more in `~/.config/pi-container/config.sh`.
 
 ## Configuration
 
-Copy the example and customise:
+`install.sh` creates `~/.config/pi-container/config.sh` automatically from the template.
+To edit it:
 ```bash
-cp config.example.sh ~/.config/pi-container/config.sh
 $EDITOR ~/.config/pi-container/config.sh
+
+# Or re-copy the template from the repo:
+cp config.example.sh ~/.config/pi-container/config.sh
 ```
 
 Key options:
@@ -174,8 +177,22 @@ docker volume rm pi-tailscale-state
 # Force arm64 (Apple Silicon)
 ./build.sh --arm
 
-# Multi-arch + push to registry
+# Multi-arch + push to Docker Hub (docker login required once)
+docker login
 ./build.sh --multi --push --tag yourname/pi-devcontainer:latest
+
+# Or via Make (same thing, adds a helpful post-push message)
+make push REGISTRY=yourname/pi-devcontainer:latest
+```
+
+Available `make` targets:
+```
+make help           # list all targets
+make build          # build for local arch
+make install        # build + install pirun
+make run            # launch a session
+make push           # multi-arch build + push  (REGISTRY= required)
+make install-remote # pull from registry + install pirun  (REGISTRY= required)
 ```
 
 ---
@@ -250,16 +267,19 @@ For pure network-level AI sandboxing (restrict what the AI can reach):
 ## Apple Silicon / Mac M-series
 
 ```bash
-# Build native arm64 image (faster, no emulation)
+# Build a native arm64 image (fastest, no emulation)
 ./build.sh --arm
 
-# Or pull and run with Rosetta emulation (amd64 image):
-EXTRA_DOCKER_ARGS=("--platform=linux/amd64") pirun
+# If pulling a pre-built amd64 image, force the platform in config.sh:
+# EXTRA_DOCKER_ARGS=("--platform=linux/amd64")
 ```
 
 On macOS, `/dev/net/tun` is not available via Docker Desktop.
 Tailscale automatically falls back to **userspace networking** in that case
 (slightly lower performance, fully transparent to applications).
+
+Note: Docker Desktop on Mac runs Linux in a VM, so the container is always
+Linux regardless of host OS — the image platform flag just controls amd64 vs arm64.
 
 ---
 
