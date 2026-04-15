@@ -40,7 +40,7 @@ Requires a one-time `docker login` on the push machine.
 **On the first machine:** push the image once:
 ```bash
 docker login                          # one-time, uses Docker Hub by default
-make push REGISTRY=yourname/pi-devcontainer:latest
+make push REGISTRY=mfiers/pi-devcontainer:latest
 # builds multi-arch (amd64 + arm64) and pushes to Docker Hub
 ```
 
@@ -48,14 +48,14 @@ make push REGISTRY=yourname/pi-devcontainer:latest
 ```bash
 # Option 1 — copy two files manually or via scp:
 scp install.sh run.sh other-host:~/pi-container/
-ssh other-host 'cd ~/pi-container && ./install.sh --from-registry yourname/pi-devcontainer:latest'
+ssh other-host 'cd ~/pi-container && ./install.sh --from-registry mfiers/pi-devcontainer:latest'
 
 # Option 2 — curl directly from GitHub (repo is public):
 bash <(curl -fsSL https://raw.githubusercontent.com/mfiers/pi-container/main/install.sh) \
-  --from-registry yourname/pi-devcontainer:latest
+  --from-registry mfiers/pi-devcontainer:latest
 
 # Option 3 — env var (for scripting / dotfiles bootstrap):
-REGISTRY=yourname/pi-devcontainer:latest \
+REGISTRY=mfiers/pi-devcontainer:latest \
   bash <(curl -fsSL https://raw.githubusercontent.com/mfiers/pi-container/main/install.sh)
 ```
 
@@ -198,10 +198,10 @@ docker volume rm pi-tailscale-state
 
 # Multi-arch + push to Docker Hub (docker login required once)
 docker login
-./build.sh --multi --push --tag yourname/pi-devcontainer:latest
+./build.sh --multi --push --tag mfiers/pi-devcontainer:latest
 
 # Or via Make (same thing, adds a helpful post-push message)
-make push REGISTRY=yourname/pi-devcontainer:latest
+make push REGISTRY=mfiers/pi-devcontainer:latest
 ```
 
 Available `make` targets:

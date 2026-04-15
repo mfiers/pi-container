@@ -12,7 +12,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
-IMAGE_TAG="pi-devcontainer:latest"
+IMAGE_TAG="mfiers/pi-devcontainer:latest"
 PLATFORMS="linux/$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/')"
 PUSH=false
 BUILDER_NAME="pi-devcontainer-builder"

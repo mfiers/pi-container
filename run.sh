@@ -11,7 +11,7 @@
 set -euo pipefail
 
 # ── Defaults (overridable in config) ─────────────────────────────────────────
-IMAGE_NAME="pi-devcontainer:latest"
+IMAGE_NAME="mfiers/pi-devcontainer:latest"
 CONTAINER_NAME="pi-dev"
 TAILSCALE_VOLUME="pi-tailscale-state"
 ENABLE_TAILSCALE="true"

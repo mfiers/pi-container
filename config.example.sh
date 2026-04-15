@@ -6,7 +6,7 @@
 # ────────────────────────────────────────────────────────────────────────────
 
 # ── Image / container identity ────────────────────────────────────────────────
-IMAGE_NAME="pi-devcontainer:latest"
+IMAGE_NAME="mfiers/pi-devcontainer:latest"
 CONTAINER_NAME="pi-dev"          # used for re-attach detection
 CONTAINER_HOSTNAME="pi-dev"
 

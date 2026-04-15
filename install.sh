@@ -8,10 +8,10 @@
 #    ./install.sh
 #
 #  Pull pre-built image from a registry (only run.sh needed after):
-#    ./install.sh --from-registry yourname/pi-devcontainer:latest
+#    ./install.sh --from-registry mfiers/pi-devcontainer:latest
 #
 #  Non-interactive (CI / remote bootstrap via curl | bash):
-#    REGISTRY=yourname/pi-devcontainer:latest \
+#    REGISTRY=mfiers/pi-devcontainer:latest \
 #      bash <(curl -fsSL https://raw.githubusercontent.com/mfiers/pi-container/main/install.sh)
 #
 # What is installed
@@ -29,7 +29,7 @@ PIRUN="${BIN_DIR}/pirun"
 
 # ── Defaults ──────────────────────────────────────────────────────────────────
 REGISTRY="${REGISTRY:-}"        # set via env or --from-registry flag
-IMAGE_NAME="pi-devcontainer:latest"
+IMAGE_NAME="mfiers/pi-devcontainer:latest"
 DO_BUILD=true
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
@@ -79,7 +79,7 @@ if [[ ! -f "${CONFIG_FILE}" ]]; then
         minimal_config() {
             cat > "${CONFIG_FILE}" << 'EOF'
 # pi-container config — see config.example.sh for full docs
-IMAGE_NAME="pi-devcontainer:latest"
+IMAGE_NAME="mfiers/pi-devcontainer:latest"
 CONTAINER_NAME="pi-dev"
 ENABLE_TAILSCALE="true"
 TAILSCALE_VOLUME="pi-tailscale-state"
@@ -114,7 +114,7 @@ if [[ -f "${SCRIPT_DIR}/run.sh" ]]; then
         "${SCRIPT_DIR}/run.sh" > "${PIRUN}"
 else
     # Fallback: fetch from GitHub
-    curl -fsSL "https://raw.githubusercontent.com/yourname/pi-container/main/run.sh" \
+    curl -fsSL "https://raw.githubusercontent.com/mfiers/pi-container/main/run.sh" \
         > "${PIRUN}"
 fi
 chmod +x "${PIRUN}"
