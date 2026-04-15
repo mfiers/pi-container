@@ -1,0 +1,14 @@
+# Don't copy host-specific files into the build context
+.git
+.gitignore
+*.md
+install.sh
+build.sh
+run.sh
+config*.sh
+config.example.sh
+.env
+*.log
+__pycache__
+*.pyc
+.DS_Store
