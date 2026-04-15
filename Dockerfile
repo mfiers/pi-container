@@ -1,15 +1,21 @@
 # syntax=docker/dockerfile:1
 # ────────────────────────────────────────────────────────────────────────────
 # pi-devcontainer — Secure AI development environment
-# Debian Bookworm · uv · micromamba · tailscale
-# Supports: linux/amd64, linux/arm64 (Mac M-series)
+# rapidsai/base (Ubuntu 24.04) · CUDA 12.8 · PyTorch 2.7 · RAPIDS 25.02
+# uv · micromamba · tailscale
 # ────────────────────────────────────────────────────────────────────────────
-ARG DEBIAN_VERSION=bookworm
-FROM debian:${DEBIAN_VERSION}-slim
+FROM rapidsai/base:25.02-cuda12.8-py3.11
+
+# rapidsai/base runs as non-root — switch to root for all setup
+USER root
+
+# /opt/conda is group-restricted (group: conda, mode 770) — open to all users
+# so any UID injected at runtime by the entrypoint can use Python/CUDA tools
+RUN chmod -R a+rX /opt/conda
 
 LABEL org.opencontainers.image.title="pi-devcontainer"
-LABEL org.opencontainers.image.description="Secure AI dev container: uv, micromamba, tailscale"
-LABEL org.opencontainers.image.base.name="debian:bookworm-slim"
+LABEL org.opencontainers.image.description="Secure AI dev container: uv, micromamba, tailscale, CUDA 12.8, RAPIDS 25.02"
+LABEL org.opencontainers.image.base.name="rapidsai/base:25.02-cuda12.8-py3.11"
 
 # ── Environment ───────────────────────────────────────────────────────────────
 ENV DEBIAN_FRONTEND=noninteractive \
@@ -54,10 +60,10 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 # ── Tailscale ─────────────────────────────────────────────────────────────────
-# Official Tailscale Debian repo (handles amd64 + arm64 automatically)
-RUN curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.noarmor.gpg \
+# Official Tailscale Ubuntu Noble repo (handles amd64 + arm64 automatically)
+RUN curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.noarmor.gpg \
         -o /usr/share/keyrings/tailscale-archive-keyring.gpg \
-    && curl -fsSL https://pkgs.tailscale.com/stable/debian/bookworm.tailscale-keyring.list \
+    && curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/noble.tailscale-keyring.list \
         -o /etc/apt/sources.list.d/tailscale.list \
     && apt-get update \
     && apt-get install -y --no-install-recommends tailscale \
