@@ -84,8 +84,10 @@ if [[ "${DO_PULL}" == "true" ]] || [[ ! -f "${SIF_IMAGE}" ]]; then
     TMP_SIF="${SIF_IMAGE}.tmp.$$"
 
     pull_sif() {
-        # $1 — optional env prefix, e.g. "GODEBUG=http2client=0"
-        env ${1:-} "${APPTAINER_CMD}" pull --force "${TMP_SIF}" "docker://${REGISTRY_IMAGE}"
+        # $1 — optional extra env vars, e.g. "GODEBUG=http2client=0"
+        # --disable-cache: skip Apptainer's internal OCI/SIF cache so a
+        # corrupt cached entry can never be served instead of a fresh pull.
+        env ${1:-} "${APPTAINER_CMD}" pull --force --disable-cache "${TMP_SIF}" "docker://${REGISTRY_IMAGE}"
     }
 
     validate_sif() {
