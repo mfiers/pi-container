@@ -171,10 +171,10 @@ if [[ "${HAVE_DOCKER}" == "true" ]]; then
 else
     # ── Apptainer: the SIF is pulled automatically on first pirun invocation ──
     # (apptainer-run.sh handles this — no action needed here)
-    APPTAINER_SIF_DEFAULT="${HOME}/.local/share/pi-container/pi-devcontainer.sif"
-    echo "ℹ  Apptainer mode: SIF will be pulled on first launch."
-    echo "   Default location: ${APPTAINER_SIF_DEFAULT}"
-    echo "   Override via APPTAINER_SIF in ${CONFIG_FILE}"
+    APPTAINER_SANDBOX_DEFAULT="${HOME}/.local/share/pi-container/pi-devcontainer"
+    echo "ℹ  Apptainer mode: sandbox will be built on first launch."
+    echo "   Default location: ${APPTAINER_SANDBOX_DEFAULT}/"
+    echo "   Override via APPTAINER_SANDBOX in ${CONFIG_FILE}"
 fi
 
 echo ""

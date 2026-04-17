@@ -25,7 +25,7 @@ run-apptainer:  ## Launch a container session via Apptainer (pulls SIF if missin
 install-apptainer:  ## Install pirun using Apptainer (no Docker needed)
 	./install.sh
 
-pull-apptainer:  ## Update the Apptainer SIF to the latest image from the registry
+pull-apptainer:  ## Rebuild the Apptainer sandbox from the latest registry image
 	./apptainer-run.sh --pull
 
 # -- Registry: push from this machine -----------------------------------------

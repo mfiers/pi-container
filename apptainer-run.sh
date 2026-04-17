@@ -2,34 +2,36 @@
 # ────────────────────────────────────────────────────────────────────────────
 # apptainer-run.sh — Launch the pi dev container via Apptainer / Singularity
 #
+# Uses a SANDBOX (plain directory) instead of a SIF file.
+# This avoids squashfuse entirely — no FUSE required, works on any filesystem
+# including NFS, GPFS, and Lustre (common on HPC clusters).
+# The container root is mounted read-only (--no-write); your $HOME and CWD
+# are bind-mounted read-write as usual.
+#
 # Key differences vs Docker:
 #   - Runs as YOU automatically (no UID/GID remapping needed)
-#   - $HOME is bind-mounted automatically (all dotfiles visible without
-#     explicit mounts)
-#   - Uses HOST network by default (no NAT, Tailscale on the host just works)
+#   - $HOME is bind-mounted automatically (all dotfiles visible)
+#   - Uses HOST network (no NAT; host Tailscale works transparently)
 #   - No root daemon required — ideal for HPC clusters
-#   - Images are .sif files stored locally
+#   - No squashfuse / FUSE needed — sandbox is a plain directory
 #
 # Tailscale note:
 #   Do NOT run tailscaled inside the Apptainer container (needs NET_ADMIN).
-#   Instead, run Tailscale on the HOST — the container sees the host network
-#   and uses the VPN transparently.  On HPC clusters you typically don't need
-#   a VPN at all.
+#   Run Tailscale on the HOST instead — the container shares host networking.
 #
 # Usage:
 #   apptainer-run.sh                     # interactive shell
 #   apptainer-run.sh <command> [args]    # run a single command
-#   apptainer-run.sh --pull              # re-pull / update the SIF image
+#   apptainer-run.sh --pull              # (re)build the sandbox from registry
 #   apptainer-run.sh --help
 # ────────────────────────────────────────────────────────────────────────────
 set -euo pipefail
 
 # ── Defaults (overridable in config) ─────────────────────────────────────────
-# Where to store the .sif image (defaults to ~/.local/share/pi-container/)
-SIF_DIR="${HOME}/.local/share/pi-container"
-SIF_IMAGE="${SIF_DIR}/pi-devcontainer.sif"
+# Sandbox directory (plain directory tree, no squashfuse needed)
+SANDBOX_DIR="${HOME}/.local/share/pi-container/pi-devcontainer"
 
-# Docker Hub image to pull from (same image as the Docker workflow)
+# Docker Hub image to build from (same image as the Docker workflow)
 REGISTRY_IMAGE="mfiers/pi-devcontainer:latest"
 
 EXTRA_MOUNTS=()
@@ -37,16 +39,14 @@ EXTRA_ENV=()
 EXTRA_APPTAINER_ARGS=()
 
 # ── Config ────────────────────────────────────────────────────────────────────
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 CONFIG_FILE="${HOME}/.config/pi-container/config.sh"
 
 if [[ -f "${CONFIG_FILE}" ]]; then
     # shellcheck source=/dev/null
     source "${CONFIG_FILE}"
 fi
-# Allow config to override SIF location via APPTAINER_SIF
-SIF_IMAGE="${APPTAINER_SIF:-${SIF_IMAGE}}"
-SIF_DIR="$(dirname "${SIF_IMAGE}")"
+# Allow config to override sandbox location via APPTAINER_SANDBOX
+SANDBOX_DIR="${APPTAINER_SANDBOX:-${SANDBOX_DIR}}"
 
 # ── Argument parsing ──────────────────────────────────────────────────────────
 DO_PULL=false
@@ -56,7 +56,7 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --pull|-p)   DO_PULL=true; shift ;;
         --help|-h)
-            sed -n '3,23p' "$0" | sed 's/^# \?//'
+            sed -n '3,24p' "$0" | sed 's/^# \?//'
             exit 0 ;;
         *)  PASSTHROUGH_ARGS+=("$1"); shift ;;
     esac
@@ -72,52 +72,57 @@ fi
 # Prefer apptainer, fall back to singularity
 APPTAINER_CMD="$(command -v apptainer 2>/dev/null || command -v singularity)"
 
-# ── Pull / update SIF ─────────────────────────────────────────────────────────
-mkdir -p "${SIF_DIR}"
+# ── Build / update sandbox ────────────────────────────────────────────────────
+if [[ "${DO_PULL}" == "true" ]] || [[ ! -d "${SANDBOX_DIR}/bin" ]]; then
+    echo "Building sandbox from ${REGISTRY_IMAGE} → ${SANDBOX_DIR} ..."
+    echo "(This takes a minute on first run; subsequent starts are instant)"
 
-if [[ "${DO_PULL}" == "true" ]] || [[ ! -f "${SIF_IMAGE}" ]]; then
-    echo "Pulling ${REGISTRY_IMAGE} → ${SIF_IMAGE} ..."
+    # Build to a temp dir, validate, then move into place atomically.
+    # A failed build never corrupts the live sandbox.
+    TMP_SANDBOX="${SANDBOX_DIR}.tmp.$$"
+    mkdir -p "$(dirname "${SANDBOX_DIR}")"
 
-    # Pull to a temp file so a failed/partial download never sits at the real
-    # path (a corrupt SIF at SIF_IMAGE causes a cryptic "image format not
-    # recognised" error on the next run even though pull printed ✓).
-    TMP_SIF="${SIF_IMAGE}.tmp.$$"
-
-    pull_sif() {
+    build_sandbox() {
         # $1 — optional extra env vars, e.g. "GODEBUG=http2client=0"
-        # --disable-cache: skip Apptainer's internal OCI/SIF cache so a
-        # corrupt cached entry can never be served instead of a fresh pull.
-        env ${1:-} "${APPTAINER_CMD}" pull --force --disable-cache "${TMP_SIF}" "docker://${REGISTRY_IMAGE}"
+        # --disable-cache: bypass Apptainer's OCI layer cache so stale/corrupt
+        # cached layers can't produce a broken sandbox silently.
+        env ${1:-} "${APPTAINER_CMD}" build \
+            --sandbox \
+            --disable-cache \
+            --force \
+            "${TMP_SANDBOX}" \
+            "docker://${REGISTRY_IMAGE}"
     }
 
-    validate_sif() {
-        "${APPTAINER_CMD}" inspect "${TMP_SIF}" &>/dev/null
+    validate_sandbox() {
+        # Check that the sandbox has a working shell — catches partial builds
+        "${APPTAINER_CMD}" exec --no-write "${TMP_SANDBOX}" true &>/dev/null
     }
 
-    # First attempt: normal (HTTP/2 enabled)
-    if pull_sif && validate_sif; then
-        mv -f "${TMP_SIF}" "${SIF_IMAGE}"
+    if build_sandbox && validate_sandbox; then
+        rm -rf "${SANDBOX_DIR}"
+        mv "${TMP_SANDBOX}" "${SANDBOX_DIR}"
     else
-        # Remove any partial file from the first attempt before retrying
-        rm -f "${TMP_SIF}"
+        rm -rf "${TMP_SANDBOX}"
         echo ""
-        echo "⚠  Pull failed or SIF invalid — retrying with HTTP/2 disabled ..."
+        echo "⚠  Build failed — retrying with HTTP/2 disabled ..."
         echo "   (fixes \"stream ID N; PROTOCOL_ERROR\" on HPC networks/proxies)"
-        if pull_sif "GODEBUG=http2client=0" && validate_sif; then
-            mv -f "${TMP_SIF}" "${SIF_IMAGE}"
+        if build_sandbox "GODEBUG=http2client=0" && validate_sandbox; then
+            rm -rf "${SANDBOX_DIR}"
+            mv "${TMP_SANDBOX}" "${SANDBOX_DIR}"
         else
-            rm -f "${TMP_SIF}"
-            echo "✗ Pull failed.  Check network access to Docker Hub and try again."
+            rm -rf "${TMP_SANDBOX}"
+            echo "✗ Build failed. Check network access to Docker Hub and try again."
             exit 1
         fi
     fi
 
-    echo "✓ SIF ready: ${SIF_IMAGE}"
+    echo "✓ Sandbox ready: ${SANDBOX_DIR}"
 fi
 
-if [[ ! -f "${SIF_IMAGE}" ]]; then
-    echo "✗ SIF not found: ${SIF_IMAGE}"
-    echo "  Run with --pull to download it."
+if [[ ! -d "${SANDBOX_DIR}/bin" ]]; then
+    echo "✗ Sandbox not found: ${SANDBOX_DIR}"
+    echo "  Run with --pull to build it."
     exit 1
 fi
 
@@ -125,13 +130,13 @@ fi
 CWD="$(pwd)"
 
 # ── Build bind-mount list ─────────────────────────────────────────────────────
-# NOTE: $HOME is mounted automatically by Apptainer — no need to list dotfiles.
+# $HOME is mounted automatically by Apptainer — dotfiles need no explicit entry.
 BINDS=()
 
-# CWD at same path (Apptainer makes CWD accessible but doesn't guarantee path)
+# CWD at identical path so scripts with hardcoded paths work unchanged
 BINDS+=(--bind "${CWD}:${CWD}")
 
-# Extra mounts from config (same format as Docker: "src:dst" or bare "path")
+# Extra mounts from config (bare path or "src:dst[:opts]")
 for extra in "${EXTRA_MOUNTS[@]+"${EXTRA_MOUNTS[@]}"}"; do
     if [[ "${extra}" != *:* ]]; then
         BINDS+=(--bind "${extra}:${extra}")
@@ -146,7 +151,7 @@ for env_var in "${EXTRA_ENV[@]+"${EXTRA_ENV[@]}"}"; do
     ENV_ARGS+=(--env "${env_var}")
 done
 
-# Forward common API keys if set in the shell
+# Forward common API keys if already set in the shell
 for key in ANTHROPIC_API_KEY OPENAI_API_KEY GITHUB_TOKEN HF_TOKEN REPLICATE_API_TOKEN; do
     [[ -n "${!key:-}" ]] && ENV_ARGS+=(--env "${key}=${!key}")
 done
@@ -155,27 +160,27 @@ done
 echo "┌─────────────────────────────────────────────────────────┐"
 echo "│  pi-devcontainer (Apptainer)                            │"
 echo "├─────────────────────────────────────────────────────────┤"
-printf "│  User   : %-45s │\n" "$(id -un) ($(id -u):$(id -g))"
-printf "│  CWD    : %-45s │\n" "${CWD}"
-printf "│  SIF    : %-45s │\n" "${SIF_IMAGE##*/}"
+printf "│  User    : %-44s │\n" "$(id -un) ($(id -u):$(id -g))"
+printf "│  CWD     : %-44s │\n" "${CWD}"
+printf "│  Sandbox : %-44s │\n" "${SANDBOX_DIR##*/}"
 echo "└─────────────────────────────────────────────────────────┘"
 
-# ── Launch ────────────────────────────────────────────────────────────────────
+# ── Launch (--no-write keeps container root read-only) ───────────────────────
 if [[ ${#PASSTHROUGH_ARGS[@]} -eq 0 ]]; then
-    # Interactive shell
     exec "${APPTAINER_CMD}" shell \
+        --no-write \
         --workdir "${CWD}" \
         "${BINDS[@]}" \
         "${ENV_ARGS[@]+"${ENV_ARGS[@]}"}" \
         "${EXTRA_APPTAINER_ARGS[@]+"${EXTRA_APPTAINER_ARGS[@]}"}" \
-        "${SIF_IMAGE}"
+        "${SANDBOX_DIR}"
 else
-    # Run a specific command
     exec "${APPTAINER_CMD}" exec \
+        --no-write \
         --workdir "${CWD}" \
         "${BINDS[@]}" \
         "${ENV_ARGS[@]+"${ENV_ARGS[@]}"}" \
         "${EXTRA_APPTAINER_ARGS[@]+"${EXTRA_APPTAINER_ARGS[@]}"}" \
-        "${SIF_IMAGE}" \
+        "${SANDBOX_DIR}" \
         "${PASSTHROUGH_ARGS[@]}"
 fi

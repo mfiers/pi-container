@@ -75,11 +75,13 @@ EXTRA_DOCKER_ARGS=(
 # DOCKER_PLATFORM="linux/arm64"
 
 # ── Apptainer / Singularity (HPC clusters, no Docker) ─────────────────────────
-# Path to the local .sif image file (created automatically on first pirun).
-# Override to use a shared SIF on a cluster software directory:
-# APPTAINER_SIF="/shared/containers/pi-devcontainer.sif"
+# Path to the sandbox directory (built automatically on first pirun).
+# A sandbox is a plain directory tree — no squashfuse/FUSE needed, works on
+# any filesystem including NFS, GPFS, and Lustre.
+# Override to use a shared location on a cluster software directory:
+# APPTAINER_SANDBOX="/shared/containers/pi-devcontainer"
 
-# Docker Hub image to pull from (same image used by the Docker workflow):
+# Docker Hub image to build from (same image used by the Docker workflow):
 # REGISTRY_IMAGE="mfiers/pi-devcontainer:latest"
 
 # Extra apptainer exec/shell flags (equivalent of EXTRA_DOCKER_ARGS):
