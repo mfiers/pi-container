@@ -77,8 +77,17 @@ mkdir -p "${SIF_DIR}"
 
 if [[ "${DO_PULL}" == "true" ]] || [[ ! -f "${SIF_IMAGE}" ]]; then
     echo "Pulling ${REGISTRY_IMAGE} → ${SIF_IMAGE} ..."
-    # apptainer pull overwrites the .sif if it already exists
-    "${APPTAINER_CMD}" pull --force "${SIF_IMAGE}" "docker://${REGISTRY_IMAGE}"
+    # First attempt with default settings (HTTP/2 enabled).
+    # If it fails for any reason, retry with HTTP/2 disabled.
+    # GODEBUG=http2client=0 forces Go's HTTP client to fall back to HTTP/1.1,
+    # which fixes the "stream ID N; PROTOCOL_ERROR" error seen on some HPC
+    # networks and proxies that don't correctly handle HTTP/2 multiplexing.
+    if ! "${APPTAINER_CMD}" pull --force "${SIF_IMAGE}" "docker://${REGISTRY_IMAGE}"; then
+        echo ""
+        echo "⚠  Pull failed — retrying with HTTP/2 disabled (fixes PROTOCOL_ERROR on HPC networks) ..."
+        GODEBUG=http2client=0 \
+            "${APPTAINER_CMD}" pull --force "${SIF_IMAGE}" "docker://${REGISTRY_IMAGE}"
+    fi
     echo "✓ SIF ready: ${SIF_IMAGE}"
 fi
 
