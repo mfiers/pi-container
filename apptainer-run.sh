@@ -96,7 +96,7 @@ if [[ "${DO_PULL}" == "true" ]] || [[ ! -d "${SANDBOX_DIR}/bin" ]]; then
 
     validate_sandbox() {
         # Check that the sandbox has a working shell — catches partial builds
-        "${APPTAINER_CMD}" exec --no-write "${TMP_SANDBOX}" true &>/dev/null
+        "${APPTAINER_CMD}" exec "${TMP_SANDBOX}" true &>/dev/null
     }
 
     if build_sandbox && validate_sandbox; then
@@ -165,10 +165,9 @@ printf "│  CWD     : %-44s │\n" "${CWD}"
 printf "│  Sandbox : %-44s │\n" "${SANDBOX_DIR##*/}"
 echo "└─────────────────────────────────────────────────────────┘"
 
-# ── Launch (--no-write keeps container root read-only) ───────────────────────
+# ── Launch (sandbox is read-only by default; use --writable to override) ─────
 if [[ ${#PASSTHROUGH_ARGS[@]} -eq 0 ]]; then
     exec "${APPTAINER_CMD}" shell \
-        --no-write \
         --workdir "${CWD}" \
         "${BINDS[@]}" \
         "${ENV_ARGS[@]+"${ENV_ARGS[@]}"}" \
@@ -176,7 +175,6 @@ if [[ ${#PASSTHROUGH_ARGS[@]} -eq 0 ]]; then
         "${SANDBOX_DIR}"
 else
     exec "${APPTAINER_CMD}" exec \
-        --no-write \
         --workdir "${CWD}" \
         "${BINDS[@]}" \
         "${ENV_ARGS[@]+"${ENV_ARGS[@]}"}" \
