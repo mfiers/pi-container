@@ -77,17 +77,39 @@ mkdir -p "${SIF_DIR}"
 
 if [[ "${DO_PULL}" == "true" ]] || [[ ! -f "${SIF_IMAGE}" ]]; then
     echo "Pulling ${REGISTRY_IMAGE} → ${SIF_IMAGE} ..."
-    # First attempt with default settings (HTTP/2 enabled).
-    # If it fails for any reason, retry with HTTP/2 disabled.
-    # GODEBUG=http2client=0 forces Go's HTTP client to fall back to HTTP/1.1,
-    # which fixes the "stream ID N; PROTOCOL_ERROR" error seen on some HPC
-    # networks and proxies that don't correctly handle HTTP/2 multiplexing.
-    if ! "${APPTAINER_CMD}" pull --force "${SIF_IMAGE}" "docker://${REGISTRY_IMAGE}"; then
+
+    # Pull to a temp file so a failed/partial download never sits at the real
+    # path (a corrupt SIF at SIF_IMAGE causes a cryptic "image format not
+    # recognised" error on the next run even though pull printed ✓).
+    TMP_SIF="${SIF_IMAGE}.tmp.$$"
+
+    pull_sif() {
+        # $1 — optional env prefix, e.g. "GODEBUG=http2client=0"
+        env ${1:-} "${APPTAINER_CMD}" pull --force "${TMP_SIF}" "docker://${REGISTRY_IMAGE}"
+    }
+
+    validate_sif() {
+        "${APPTAINER_CMD}" inspect "${TMP_SIF}" &>/dev/null
+    }
+
+    # First attempt: normal (HTTP/2 enabled)
+    if pull_sif && validate_sif; then
+        mv -f "${TMP_SIF}" "${SIF_IMAGE}"
+    else
+        # Remove any partial file from the first attempt before retrying
+        rm -f "${TMP_SIF}"
         echo ""
-        echo "⚠  Pull failed — retrying with HTTP/2 disabled (fixes PROTOCOL_ERROR on HPC networks) ..."
-        GODEBUG=http2client=0 \
-            "${APPTAINER_CMD}" pull --force "${SIF_IMAGE}" "docker://${REGISTRY_IMAGE}"
+        echo "⚠  Pull failed or SIF invalid — retrying with HTTP/2 disabled ..."
+        echo "   (fixes \"stream ID N; PROTOCOL_ERROR\" on HPC networks/proxies)"
+        if pull_sif "GODEBUG=http2client=0" && validate_sif; then
+            mv -f "${TMP_SIF}" "${SIF_IMAGE}"
+        else
+            rm -f "${TMP_SIF}"
+            echo "✗ Pull failed.  Check network access to Docker Hub and try again."
+            exit 1
+        fi
     fi
+
     echo "✓ SIF ready: ${SIF_IMAGE}"
 fi
 
