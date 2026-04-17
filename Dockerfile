@@ -39,6 +39,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     procps \
     # Shell productivity
     tmux \
+    emacs-nox \
     vim-tiny \
     less \
     jq \
@@ -103,7 +104,7 @@ EOF
 # ── Container-specific environment overrides ─────────────────────────────────
 RUN cat > /etc/profile.d/container-env.sh << 'EOF'
 # Useful defaults inside the container
-export EDITOR="${EDITOR:-vim}"
+export EDITOR="${EDITOR:-emacs}"
 export PAGER="${PAGER:-less}"
 # uv cache: per-user under HOME so it persists across sessions if HOME is mounted
 export UV_CACHE_DIR="${HOME}/.cache/uv"
