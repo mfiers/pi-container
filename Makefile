@@ -16,8 +16,17 @@ build:  ## Build image for local architecture
 install:  ## Build image + install pirun locally
 	./install.sh
 
-run:  ## Launch a container session (auto-pulls image if not present)
+run:  ## Launch a container session via Docker (auto-pulls image if not present)
 	./run.sh
+
+run-apptainer:  ## Launch a container session via Apptainer (pulls SIF if missing)
+	./apptainer-run.sh
+
+install-apptainer:  ## Install pirun using Apptainer (no Docker needed)
+	./install.sh
+
+pull-apptainer:  ## Update the Apptainer SIF to the latest image from the registry
+	./apptainer-run.sh --pull
 
 # -- Registry: push from this machine -----------------------------------------
 

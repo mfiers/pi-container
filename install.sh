@@ -57,12 +57,23 @@ echo "║     pi-devcontainer  install         ║"
 echo "╚══════════════════════════════════════╝"
 
 # ── Prereq check ──────────────────────────────────────────────────────────────
-if ! command -v docker &>/dev/null; then
-    echo "✗ Docker not found.  Install it first:"
-    echo "  https://docs.docker.com/engine/install/"
+HAVE_DOCKER=false
+HAVE_APPTAINER=false
+command -v docker     &>/dev/null && HAVE_DOCKER=true
+(command -v apptainer &>/dev/null || command -v singularity &>/dev/null) && HAVE_APPTAINER=true
+
+if [[ "${HAVE_DOCKER}" == "false" && "${HAVE_APPTAINER}" == "false" ]]; then
+    echo "✗ Neither Docker nor Apptainer/Singularity found."
+    echo "  Docker:    https://docs.docker.com/engine/install/"
+    echo "  Apptainer: https://apptainer.org/docs/admin/main/installation.html"
     exit 1
 fi
-echo "✓ Docker $(docker --version | awk '{print $3}' | tr -d ',')"
+
+if [[ "${HAVE_DOCKER}" == "true" ]]; then
+    echo "✓ Docker $(docker --version | awk '{print $3}' | tr -d ',')"
+else
+    echo "ℹ  Docker not found — switching to Apptainer-only install."
+fi
 
 # ── Config ────────────────────────────────────────────────────────────────────
 mkdir -p "${CONFIG_DIR}"
@@ -103,22 +114,32 @@ source "${CONFIG_FILE}"
 # Override IMAGE_NAME if pulling from a specific registry
 [[ -n "${REGISTRY}" ]] && IMAGE_NAME="${REGISTRY}"
 
-# ── Install self-contained run.sh ─────────────────────────────────────────────
-# We write a *copy* of run.sh into ~/.local/bin/pirun rather than a pointer
-# to SCRIPT_DIR, so the launcher works even after the source repo is deleted.
+# ── Install self-contained launcher ───────────────────────────────────────────
+# Copy the appropriate launcher into ~/.local/bin/pirun so it works from any
+# directory even after the source repo is deleted.
 mkdir -p "${BIN_DIR}"
 
-if [[ -f "${SCRIPT_DIR}/run.sh" ]]; then
-    # Embed the registry/image into the installed copy so it's self-contained
-    sed "s|^IMAGE_NAME=.*|IMAGE_NAME=\"${IMAGE_NAME}\"|" \
-        "${SCRIPT_DIR}/run.sh" > "${PIRUN}"
+if [[ "${HAVE_DOCKER}" == "true" ]]; then
+    # Docker mode: embed IMAGE_NAME into a copy of run.sh
+    if [[ -f "${SCRIPT_DIR}/run.sh" ]]; then
+        sed "s|^IMAGE_NAME=.*|IMAGE_NAME=\"${IMAGE_NAME}\"|" \
+            "${SCRIPT_DIR}/run.sh" > "${PIRUN}"
+    else
+        curl -fsSL "https://raw.githubusercontent.com/mfiers/pi-container/main/run.sh" \
+            > "${PIRUN}"
+    fi
 else
-    # Fallback: fetch from GitHub
-    curl -fsSL "https://raw.githubusercontent.com/mfiers/pi-container/main/run.sh" \
-        > "${PIRUN}"
+    # Apptainer-only mode: install apptainer-run.sh as pirun
+    if [[ -f "${SCRIPT_DIR}/apptainer-run.sh" ]]; then
+        sed "s|^REGISTRY_IMAGE=.*|REGISTRY_IMAGE=\"${IMAGE_NAME}\"|" \
+            "${SCRIPT_DIR}/apptainer-run.sh" > "${PIRUN}"
+    else
+        curl -fsSL "https://raw.githubusercontent.com/mfiers/pi-container/main/apptainer-run.sh" \
+            > "${PIRUN}"
+    fi
 fi
 chmod +x "${PIRUN}"
-echo "✓ Launcher: ${PIRUN}"
+echo "✓ Launcher: ${PIRUN} ($([ "${HAVE_DOCKER}" == 'true' ] && echo Docker || echo Apptainer))"
 
 # ── PATH check ────────────────────────────────────────────────────────────────
 if [[ ":${PATH}:" != *":${BIN_DIR}:"* ]]; then
@@ -128,28 +149,32 @@ if [[ ":${PATH}:" != *":${BIN_DIR}:"* ]]; then
     echo '     export PATH="${HOME}/.local/bin:${PATH}"'
 fi
 
-# ── Get the Docker image ──────────────────────────────────────────────────────
+# ── Get the image ─────────────────────────────────────────────────────────────
 echo ""
-if [[ "${DO_BUILD}" == "false" && -n "${REGISTRY}" ]]; then
-    # ── Pull from registry ────────────────────────────────────────────────────
-    echo "Pulling ${REGISTRY} ..."
-    docker pull "${REGISTRY}"
-    # Tag as the local name so run.sh finds it
-    [[ "${REGISTRY}" != "${IMAGE_NAME}" ]] \
-        && docker tag "${REGISTRY}" "${IMAGE_NAME}"
-    echo "✓ Image ready: ${IMAGE_NAME}"
-
-elif [[ "${DO_BUILD}" == "true" && -f "${SCRIPT_DIR}/Dockerfile" ]]; then
-    # ── Build locally ─────────────────────────────────────────────────────────
-    echo "Building ${IMAGE_NAME} locally ..."
-    "${SCRIPT_DIR}/build.sh" --tag "${IMAGE_NAME}"
-    echo "✓ Image built: ${IMAGE_NAME}"
-
+if [[ "${HAVE_DOCKER}" == "true" ]]; then
+    # ── Docker image ──────────────────────────────────────────────────────────
+    if [[ "${DO_BUILD}" == "false" && -n "${REGISTRY}" ]]; then
+        echo "Pulling ${REGISTRY} ..."
+        docker pull "${REGISTRY}"
+        [[ "${REGISTRY}" != "${IMAGE_NAME}" ]] \
+            && docker tag "${REGISTRY}" "${IMAGE_NAME}"
+        echo "✓ Image ready: ${IMAGE_NAME}"
+    elif [[ "${DO_BUILD}" == "true" && -f "${SCRIPT_DIR}/Dockerfile" ]]; then
+        echo "Building ${IMAGE_NAME} locally ..."
+        "${SCRIPT_DIR}/build.sh" --tag "${IMAGE_NAME}"
+        echo "✓ Image built: ${IMAGE_NAME}"
+    else
+        echo "⚠  No Dockerfile found and no registry specified."
+        echo "   Set IMAGE_NAME in ${CONFIG_FILE} to an image that exists in a registry."
+        echo "   pirun will attempt to pull it automatically on first launch."
+    fi
 else
-    # ── Defer: image will be auto-pulled by run.sh on first launch ────────────
-    echo "⚠  No Dockerfile found and no registry specified."
-    echo "   Set IMAGE_NAME in ${CONFIG_FILE} to an image that exists in a registry."
-    echo "   pirun will attempt to pull it automatically on first launch."
+    # ── Apptainer: the SIF is pulled automatically on first pirun invocation ──
+    # (apptainer-run.sh handles this — no action needed here)
+    APPTAINER_SIF_DEFAULT="${HOME}/.local/share/pi-container/pi-devcontainer.sif"
+    echo "ℹ  Apptainer mode: SIF will be pulled on first launch."
+    echo "   Default location: ${APPTAINER_SIF_DEFAULT}"
+    echo "   Override via APPTAINER_SIF in ${CONFIG_FILE}"
 fi
 
 echo ""

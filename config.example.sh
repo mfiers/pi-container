@@ -73,3 +73,18 @@ EXTRA_DOCKER_ARGS=(
 # DOCKER_PLATFORM="linux/amd64"
 # Uncomment to force native arm64:
 # DOCKER_PLATFORM="linux/arm64"
+
+# ── Apptainer / Singularity (HPC clusters, no Docker) ─────────────────────────
+# Path to the local .sif image file (created automatically on first pirun).
+# Override to use a shared SIF on a cluster software directory:
+# APPTAINER_SIF="/shared/containers/pi-devcontainer.sif"
+
+# Docker Hub image to pull from (same image used by the Docker workflow):
+# REGISTRY_IMAGE="mfiers/pi-devcontainer:latest"
+
+# Extra apptainer exec/shell flags (equivalent of EXTRA_DOCKER_ARGS):
+EXTRA_APPTAINER_ARGS=(
+    # "--nv"                    # NVIDIA GPU passthrough
+    # "--rocm"                  # AMD GPU passthrough
+    # "--bind /scratch:/scratch" # additional bind mounts
+)
